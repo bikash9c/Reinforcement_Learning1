@@ -338,10 +338,13 @@ class CarBrain:
         self.score = 0
         self.car_pos = QPointF(self.start_pos.x(), self.start_pos.y())
         self.car_angle = random.randint(0, 360)
+
         self.current_target_idx = 0
         self.targets_reached = 0
         self.path_trail.clear()
         self.steps_current_target = 0  # ✅ ADD: Reset step counter
+
+
 
         # ✅ Unlock more targets based on success
         if self.successful_episodes >= self.target_unlock_threshold:
@@ -355,6 +358,12 @@ class CarBrain:
         state, dist = self.get_state()
         self.prev_dist = dist
         self.episode_count += 1
+
+        print(f"\n🔄 EPISODE {self.episode_count} START")
+        print(f"   Active targets: {self.active_targets}")
+        print(f"   Starting at: ({self.car_pos.x():.1f}, {self.car_pos.y():.1f})")
+        print(f"   Target 1 at: ({self.target_pos.x():.1f}, {self.target_pos.y():.1f})")
+    
         
         return state
     
@@ -376,13 +385,35 @@ class CarBrain:
             elif self.active_targets == 3:
                 self.epsilon = max(self.epsilon, 0.40)
 
-        # ✅ Only switch to targets that are unlocked
+        # ✅ Check if we can switch to next target
         if self.current_target_idx < min(len(self.targets) - 1, self.active_targets - 1):
+            old_target_idx = self.current_target_idx
             self.current_target_idx += 1
+            
+            # ✅ CRITICAL: Update target_pos to the new target
             self.target_pos = self.targets[self.current_target_idx]
+            
             self.targets_reached += 1
-            self.steps_current_target = 0  # ✅ RESET steps for new target
-            self.path_trail.clear() 
+            self.steps_current_target = 0
+            self.path_trail.clear()
+            
+            print(f"")
+            print(f"{'='*60}")
+            print(f"🔄 TARGET SWITCH: {old_target_idx + 1} → {self.current_target_idx + 1}")
+            print(f"   Old target: ({self.targets[old_target_idx].x():.1f}, {self.targets[old_target_idx].y():.1f})")
+            print(f"   New target: ({self.target_pos.x():.1f}, {self.target_pos.y():.1f})")
+            print(f"   Car position: ({self.car_pos.x():.1f}, {self.car_pos.y():.1f})")
+            print(f"{'='*60}")
+            print(f"")
+            
+
+        # ✅ Only switch to targets that are unlocked
+        # if self.current_target_idx < min(len(self.targets) - 1, self.active_targets - 1):
+        #     self.current_target_idx += 1
+        #     self.target_pos = self.targets[self.current_target_idx]
+        #     self.targets_reached += 1
+        #     self.steps_current_target = 0  # ✅ RESET steps for new target
+        #     self.path_trail.clear() 
             # ✅ CRITICAL: reset position between curriculum stages
             # self.car_pos = QPointF(self.start_pos.x(), self.start_pos.y())
             # self.car_angle = random.randint(0, 360)
@@ -454,6 +485,11 @@ class CarBrain:
         #     norm_dist_prev = min(dist_to_prev / 800.0, 1.0)
         # else:
         #     norm_dist_prev = 0
+        if self.steps_current_target % 100 == 0:
+            print(f"[State] Target {self.current_target_idx+1} | "
+                f"Dist: {dist:.1f} | Angle: {angle_diff:.1f}° | "
+                f"Car: ({self.car_pos.x():.0f},{self.car_pos.y():.0f}) | "
+                f"Target: ({self.target_pos.x():.0f},{self.target_pos.y():.0f})")
         
         state = sensor_vals + [norm_angle, norm_dist] #,norm_dist_prev
         return np.array(state, dtype=np.float32), dist
@@ -521,24 +557,52 @@ class CarBrain:
             done = True
             self.alive = False
         
-       
         elif dist < 30:  # Reached target
             # ✅ ADD: Increment target reach counter
             self.target_reach_counts[self.current_target_idx] += 1
-        
+
             base_reward = 100
-            target_bonus = (self.current_target_idx + 1) * 50  # +50, +100, +150 # higher reward for later targets
+            target_bonus = (self.current_target_idx + 1) * 50
             reward = base_reward + target_bonus
+            
+            print(f"🎯 REACHED Target {self.current_target_idx + 1}!")
+            print(f"   Position: ({self.car_pos.x():.1f}, {self.car_pos.y():.1f})")
+            print(f"   Next target: {self.current_target_idx + 2 if self.current_target_idx < len(self.targets)-1 else 'NONE'}")
+            
             has_next = self.switch_to_next_target()
             if has_next:
                 reward += 20
-                done = False
-                _, new_dist = self.get_state()
+                done = False  # ✅ CRITICAL: Continue episode
+                
+                # ✅ FIX: Update prev_dist to new target distance
+                next_state, new_dist = self.get_state()
                 self.prev_dist = new_dist
+                
+                print(f"   ➡️ Switched! New target distance: {new_dist:.1f}")
+                print(f"   New target pos: ({self.target_pos.x():.1f}, {self.target_pos.y():.1f})")
             else:
-                reward+=200 #higher reward for completing all 3 targets
+                reward += 200
                 done = True
                 self.successful_episodes += 1
+                print(f"   🏁 ALL TARGETS COMPLETE!")
+       
+        # elif dist < 30:  # Reached target
+        #     # ✅ ADD: Increment target reach counter
+        #     self.target_reach_counts[self.current_target_idx] += 1
+        
+        #     base_reward = 100
+        #     target_bonus = (self.current_target_idx + 1) * 50  # +50, +100, +150 # higher reward for later targets
+        #     reward = base_reward + target_bonus
+        #     has_next = self.switch_to_next_target()
+        #     if has_next:
+        #         reward += 20
+        #         done = False
+        #         _, new_dist = self.get_state()
+        #         self.prev_dist = new_dist
+        #     else:
+        #         reward+=200 #higher reward for completing all 3 targets
+        #         done = True
+        #         self.successful_episodes += 1
 
         # 🎯 NEAR-MISS BONUS
         elif dist < 60:   # 2 * HIT_RADIUS (30 * 2)
