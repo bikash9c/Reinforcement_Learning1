@@ -195,7 +195,7 @@ class CarBrain:
         self.config = config
         
         # RL Components
-        self.input_dim = 10  # 7 sensors + angle + distance
+        self.input_dim = 9  # 7 sensors + angle + distance
         self.n_actions = 5  # left, straight, right, sharp_left, sharp_right
         
         # Networks
@@ -445,17 +445,17 @@ class CarBrain:
         norm_dist = min(dist / 800.0, 1.0)
         norm_angle = angle_diff / 180.0
 
-        # ✅ ADD: Distance to previous target (helps with navigation memory)
-        if self.current_target_idx > 0:
-            prev_target = self.targets[self.current_target_idx - 1]
-            dx_prev = prev_target.x() - self.car_pos.x()
-            dy_prev = prev_target.y() - self.car_pos.y()
-            dist_to_prev = math.sqrt(dx_prev*dx_prev + dy_prev*dy_prev)
-            norm_dist_prev = min(dist_to_prev / 800.0, 1.0)
-        else:
-            norm_dist_prev = 0
+        # # ✅ ADD: Distance to previous target (helps with navigation memory)
+        # if self.current_target_idx > 0:
+        #     prev_target = self.targets[self.current_target_idx - 1]
+        #     dx_prev = prev_target.x() - self.car_pos.x()
+        #     dy_prev = prev_target.y() - self.car_pos.y()
+        #     dist_to_prev = math.sqrt(dx_prev*dx_prev + dy_prev*dy_prev)
+        #     norm_dist_prev = min(dist_to_prev / 800.0, 1.0)
+        # else:
+        #     norm_dist_prev = 0
         
-        state = sensor_vals + [norm_angle, norm_dist,norm_dist_prev]
+        state = sensor_vals + [norm_angle, norm_dist] #,norm_dist_prev
         return np.array(state, dtype=np.float32), dist
     
     def step(self, action):
@@ -521,10 +521,7 @@ class CarBrain:
             done = True
             self.alive = False
         
-        # 🎯 NEAR-MISS BONUS (ADD THIS BLOCK)
-        elif dist < 60:   # 2 * HIT_RADIUS (30 * 2)
-            reward += 2.0
-            # do NOT set done = True
+       
         elif dist < 30:  # Reached target
             # ✅ ADD: Increment target reach counter
             self.target_reach_counts[self.current_target_idx] += 1
@@ -542,6 +539,11 @@ class CarBrain:
                 reward+=200 #higher reward for completing all 3 targets
                 done = True
                 self.successful_episodes += 1
+
+        # 🎯 NEAR-MISS BONUS
+        elif dist < 60:   # 2 * HIT_RADIUS (30 * 2)
+            reward += 2.0
+            # do NOT set done = True
         else:
             # ✅ IMPROVED: Stronger reward for getting closer
             if self.prev_dist is not None:
@@ -551,11 +553,11 @@ class CarBrain:
                 reward += diff * progress_scale
 
             # ✅ EXTRA: Move away from start for later targets
-            if self.current_target_idx >= 1:
-                dx_start = self.car_pos.x() - self.start_pos.x()
-                dy_start = self.car_pos.y() - self.start_pos.y()
-                dist_from_start = math.sqrt(dx_start*dx_start + dy_start*dy_start)
-                reward += (dist_from_start / 800.0) * 2.0
+            # if self.current_target_idx >= 1:
+            #     dx_start = self.car_pos.x() - self.start_pos.x()
+            #     dy_start = self.car_pos.y() - self.start_pos.y()
+            #     dist_from_start = math.sqrt(dx_start*dx_start + dy_start*dy_start)
+            #     reward += (dist_from_start / 800.0) * 2.0
             
             # ✅ IMPROVED: Bigger bonus for staying on bright roads
             reward += next_state[3] * 5  # Increased from 2 to 5
@@ -571,7 +573,7 @@ class CarBrain:
                 reward += max(0.0, angle_alignment) * 2.0
 
 
-            # 🔴 LOOP / STAGNATION PENALTY (THIS IS WHAT YOU ASKED)
+            # 🔴 LOOP / STAGNATION PENALTY
             # -------------------------
             if len(self.path_trail) >= 20:
                 dx = self.path_trail[-1].x() - self.path_trail[-20].x()
