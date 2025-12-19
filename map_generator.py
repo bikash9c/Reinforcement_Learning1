@@ -141,8 +141,9 @@ def create_maze_map():
     # ✅ HARDCODE all targets based on your current map
     targets = [
         (180, 300),   # Target 1 (same as current)
-        (420, 60),    # Target 2 (same as current)
-        (540, 420)    # Target 3 (NEW - at your marked position)
+        (300,180),
+        (420, 60)#,    # Target 2 (same as current)
+        # (540, 420)    # Target 3 (NEW - at your marked position)
     ]
 
 

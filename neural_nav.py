@@ -359,10 +359,12 @@ class CarBrain:
         self.prev_dist = dist
         self.episode_count += 1
 
-        print(f"\n🔄 EPISODE {self.episode_count} START")
-        print(f"   Active targets: {self.active_targets}")
-        print(f"   Starting at: ({self.car_pos.x():.1f}, {self.car_pos.y():.1f})")
-        print(f"   Target 1 at: ({self.target_pos.x():.1f}, {self.target_pos.y():.1f})")
+        # ✅ ONLY LOG EVERY 100 EPISODES
+        if self.episode_count % 100 == 0:
+            print(f"\n🔄 EPISODE {self.episode_count}")
+            print(f"   Active targets: {self.active_targets}")
+            print(f"   Success rate: {self.successful_episodes}/{self.episode_count}")
+            print(f"   Epsilon: {self.epsilon:.3f}")
     
         
         return state
@@ -382,8 +384,10 @@ class CarBrain:
         if self.active_targets > old_active:
             if self.active_targets == 2:
                 self.epsilon = max(self.epsilon, 0.35)
+                print(f"🔓 TARGET 2 UNLOCKED! Epsilon: {self.epsilon:.3f}")
             elif self.active_targets == 3:
                 self.epsilon = max(self.epsilon, 0.40)
+                print(f"🔓 TARGET 3 UNLOCKED! Epsilon: {self.epsilon:.3f}")
 
         # ✅ Check if we can switch to next target
         if self.current_target_idx < min(len(self.targets) - 1, self.active_targets - 1):
@@ -397,14 +401,8 @@ class CarBrain:
             self.steps_current_target = 0
             self.path_trail.clear()
             
-            print(f"")
-            print(f"{'='*60}")
-            print(f"🔄 TARGET SWITCH: {old_target_idx + 1} → {self.current_target_idx + 1}")
-            print(f"   Old target: ({self.targets[old_target_idx].x():.1f}, {self.targets[old_target_idx].y():.1f})")
-            print(f"   New target: ({self.target_pos.x():.1f}, {self.target_pos.y():.1f})")
-            print(f"   Car position: ({self.car_pos.x():.1f}, {self.car_pos.y():.1f})")
-            print(f"{'='*60}")
-            print(f"")
+            #✅ KEEP: This is important progress info
+            print(f"   ➡️ Moving to Target {self.current_target_idx + 1}")
             
 
         # ✅ Only switch to targets that are unlocked
@@ -485,12 +483,12 @@ class CarBrain:
         #     norm_dist_prev = min(dist_to_prev / 800.0, 1.0)
         # else:
         #     norm_dist_prev = 0
-        if self.steps_current_target % 100 == 0:
+         # ✅ REDUCE: Only log every 500 steps (was 100)
+        if self.total_steps % 500 == 0:
             print(f"[State] Target {self.current_target_idx+1} | "
                 f"Dist: {dist:.1f} | Angle: {angle_diff:.1f}° | "
-                f"Car: ({self.car_pos.x():.0f},{self.car_pos.y():.0f}) | "
-                f"Target: ({self.target_pos.x():.0f},{self.target_pos.y():.0f})")
-        
+                f"Epsilon: {self.epsilon:.3f}")
+            
         state = sensor_vals + [norm_angle, norm_dist] #,norm_dist_prev
         return np.array(state, dtype=np.float32), dist
     
@@ -565,9 +563,8 @@ class CarBrain:
             target_bonus = (self.current_target_idx + 1) * 50
             reward = base_reward + target_bonus
             
-            print(f"🎯 REACHED Target {self.current_target_idx + 1}!")
-            print(f"   Position: ({self.car_pos.x():.1f}, {self.car_pos.y():.1f})")
-            print(f"   Next target: {self.current_target_idx + 2 if self.current_target_idx < len(self.targets)-1 else 'NONE'}")
+            print(f"🎯 REACHED Target {self.current_target_idx + 1}! (Episode {self.episode_count})")
+
             
             has_next = self.switch_to_next_target()
             if has_next:
@@ -578,8 +575,7 @@ class CarBrain:
                 next_state, new_dist = self.get_state()
                 self.prev_dist = new_dist
                 
-                print(f"   ➡️ Switched! New target distance: {new_dist:.1f}")
-                print(f"   New target pos: ({self.target_pos.x():.1f}, {self.target_pos.y():.1f})")
+               
             else:
                 reward += 200
                 done = True
@@ -658,12 +654,12 @@ class CarBrain:
         self.total_steps += 1
 
         # ✅ ADD: Periodic logging for debugging
-        if self.total_steps % 200 == 0:
-            print(f"[Debug] Target {self.current_target_idx+1} | "
-                f"Dist: {dist:.1f} | "
-                f"Reward: {reward:.2f} | "
-                f"Epsilon: {self.epsilon:.3f} | "
-                f"Steps: {self.steps_current_target}")
+        # if self.total_steps % 200 == 0:
+        #     print(f"[Debug] Target {self.current_target_idx+1} | "
+        #         f"Dist: {dist:.1f} | "
+        #         f"Reward: {reward:.2f} | "
+        #         f"Epsilon: {self.epsilon:.3f} | "
+        #         f"Steps: {self.steps_current_target}")
             
         
         return next_state, reward, done
@@ -1663,35 +1659,33 @@ class NeuralNav(QMainWindow):
         """Handle end of episode"""
         self.brain.finalize_episode(self.brain.score)
         
-        # Log results with target info
         targets_reached = self.brain.targets_reached
+        
+        # ✅ ONLY LOG SIGNIFICANT EVENTS
         if self.brain.alive:
             if targets_reached == 3:
-                self.log(f"🏆 ALL TARGETS! Score: {self.brain.score:.0f}")
-            elif targets_reached == 2:
-                self.log(f"✅ Target 1+2! Score: {self.brain.score:.0f}")
-            elif targets_reached == 1:
-                self.log(f"✅ Target 1! Score: {self.brain.score:.0f}")
-            else:
-                self.log(f"✅ Success! Score: {self.brain.score:.0f}")
+                self.log(f"🏆 Episode {self.brain.episode_count}: ALL TARGETS! Score: {self.brain.score:.0f}")
+            # Don't log partial successes unless it's a milestone
         else:
-            self.log(f"❌ Crash at Target {self.brain.current_target_idx + 1}! Score: {self.brain.score:.0f}")
+            # Only log crashes every 50 episodes
+            if self.brain.episode_count % 50 == 0:
+                self.log(f"Episode {self.brain.episode_count}: Crash at T{self.brain.current_target_idx + 1}")
         
-        # Log curriculum progress
+        # Log curriculum progress only when close to unlock
         if self.brain.active_targets < 3:
             remaining = (self.brain.target_unlock_threshold * self.brain.active_targets) - self.brain.successful_episodes
-            self.log(f"📚 Target {self.brain.active_targets + 1} unlocks in {remaining} successes")
+            if remaining <= 5:  # Only show when close
+                self.log(f"🔜 {remaining} more successes to unlock Target {self.brain.active_targets + 1}")
         
-        # Log target statistics every 10 episodes
-        if self.brain.episode_count % 10 == 0:
-            self.log(f"📊 Stats | T1: {self.brain.target_reach_counts[0]} | "
+        # Log stats only every 100 episodes
+        if self.brain.episode_count % 100 == 0:
+            self.log(f"📊 Stats [Ep {self.brain.episode_count}] | "
+                    f"Success: {self.brain.successful_episodes} | "
+                    f"T1: {self.brain.target_reach_counts[0]} | "
                     f"T2: {self.brain.target_reach_counts[1]} | "
                     f"T3: {self.brain.target_reach_counts[2]}")
         
-        # Update chart
         self.chart.update_chart(self.brain.score)
-        
-        # Reset for next episode
         self.brain.reset()
         
         # NO RETURN - This is a UI handler method
