@@ -1194,9 +1194,9 @@ class Config:
         self.C_SENSOR_OFF = QColor("#ff006e")
         
         # Physics (FIXED)
-        self.CAR_WIDTH = 45        # Smaller car for grid streets
-        self.CAR_HEIGHT = 22
-        self.SENSOR_DIST = 100 #60      # Shorter sensors for grid
+        self.CAR_WIDTH = 40        # Smaller car for grid streets
+        self.CAR_HEIGHT = 20
+        self.SENSOR_DIST = 80 #60      # Shorter sensors for grid
         self.SPEED = 2    #2         # Slower speed for precise grid navigation
         self.TURN_SPEED = 8 #8        # Sharper turns for 90° grid
         self.SHARP_TURN = 20   #20     # Even sharper for tight corners
